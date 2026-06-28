@@ -1,18 +1,14 @@
-"""HTTP client for communicating with the FastAPI backend.
+"""API client — calls Gemini directly (no separate FastAPI server needed).
 
-Wraps all API calls with error handling and user-friendly messages.
+Falls back to mock responses if no GOOGLE_API_KEY is configured.
 """
 
-import os
-import requests
 import streamlit as st
-
-# Backend URL — checks environment variable, falls back to local dev URL
-API_BASE_URL = os.environ.get("BACKEND_URL", "http://localhost:8000")
+from utils import gemini_service
 
 
 def _build_profile_payload() -> dict:
-    """Build the UserProfile payload from session state."""
+    """Build the user profile dict from session state."""
     return {
         "name": st.session_state.get("user_name", "User"),
         "education": st.session_state.get("education", "Bachelor's"),
@@ -27,101 +23,36 @@ def _build_profile_payload() -> dict:
 
 
 def analyze_profile() -> dict | None:
-    """Call /analyze endpoint."""
+    """Analyze career profile using Gemini AI."""
     try:
-        response = requests.post(
-            f"{API_BASE_URL}/analyze",
-            json=_build_profile_payload(),
-            timeout=60,
-        )
-        response.raise_for_status()
-        return response.json()
-    except requests.ConnectionError:
-        st.error(
-            "🔌 Cannot connect to the backend server. "
-            "Make sure the FastAPI server is running on http://localhost:8000"
-        )
-        return None
-    except requests.Timeout:
-        st.error("⏱️ Request timed out. The AI is taking too long to respond.")
-        return None
-    except requests.HTTPError as e:
-        st.error(f"❌ API error: {e.response.status_code} — {e.response.text}")
-        return None
+        return gemini_service.analyze_profile(_build_profile_payload())
     except Exception as e:
-        st.error(f"❌ Unexpected error: {str(e)}")
+        st.error(f"❌ Analysis error: {str(e)}")
         return None
 
 
 def get_score() -> dict | None:
-    """Call /score endpoint."""
+    """Calculate employability score using Gemini AI."""
     try:
-        response = requests.post(
-            f"{API_BASE_URL}/score",
-            json=_build_profile_payload(),
-            timeout=60,
-        )
-        response.raise_for_status()
-        return response.json()
-    except requests.ConnectionError:
-        st.error(
-            "🔌 Cannot connect to the backend server. "
-            "Make sure the FastAPI server is running on http://localhost:8000"
-        )
-        return None
+        return gemini_service.calculate_score(_build_profile_payload())
     except Exception as e:
-        st.error(f"❌ Error fetching score: {str(e)}")
+        st.error(f"❌ Score error: {str(e)}")
         return None
 
 
 def get_roadmap(selected_career: str) -> dict | None:
-    """Call /roadmap endpoint."""
+    """Generate 30/60/90 day roadmap using Gemini AI."""
     try:
-        payload = {
-            "profile": _build_profile_payload(),
-            "selected_career": selected_career,
-        }
-        response = requests.post(
-            f"{API_BASE_URL}/roadmap",
-            json=payload,
-            timeout=60,
-        )
-        response.raise_for_status()
-        return response.json()
-    except requests.ConnectionError:
-        st.error(
-            "🔌 Cannot connect to the backend server. "
-            "Make sure the FastAPI server is running on http://localhost:8000"
-        )
-        return None
+        return gemini_service.generate_roadmap(_build_profile_payload(), selected_career)
     except Exception as e:
-        st.error(f"❌ Error generating roadmap: {str(e)}")
+        st.error(f"❌ Roadmap error: {str(e)}")
         return None
 
 
 def chat(message: str, history: list[dict], profile_data: dict | None = None) -> dict | None:
-    """Call /chat endpoint."""
+    """Career coaching chat using Gemini AI."""
     try:
-        payload = {
-            "message": message,
-            "conversation_history": history,
-        }
-        if profile_data:
-            payload["user_profile"] = profile_data
-
-        response = requests.post(
-            f"{API_BASE_URL}/chat",
-            json=payload,
-            timeout=60,
-        )
-        response.raise_for_status()
-        return response.json()
-    except requests.ConnectionError:
-        st.error(
-            "🔌 Cannot connect to the backend server. "
-            "Make sure the FastAPI server is running on http://localhost:8000"
-        )
-        return None
+        return gemini_service.chat(message, history, profile_data)
     except Exception as e:
         st.error(f"❌ Chat error: {str(e)}")
         return None
